@@ -71,9 +71,9 @@ group_summary = df.groupby("Group").agg(
     AvgMotor=("MotorBeta", "mean"),
     AvgVisual=("VisualBeta", "mean"),
     AvgAccuracy=("AccuracyPct", "mean"),
+    MedianAccuracy=("AccuracyPct","median"),
 )
 
 # Sort groups so highest accuracy appears first, then round values
 # to make the printed table easier to read in class.
 print(group_summary.sort_values("AvgAccuracy", ascending=False).round(3))
-

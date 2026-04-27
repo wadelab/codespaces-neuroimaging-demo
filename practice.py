@@ -1,21 +1,7 @@
-"""
-This script performs a tiny end-to-end analysis of a neuroimaging demo dataset.
-Here we are interested in two behavioural things that might affect the quality of our fMRI data:
-1. Head motion (MeanFD_mm) - more motion can degrade data quality.
-2. Task accuracy (AccuracyPct) - lower accuracy might indicate less engagement with the task.
-What it does:
-1. Loads the CSV file from the data folder.
-2. Prints basic dataset information (row count and column names).
-3. Computes overall averages for head motion and task accuracy.
-4. Computes per-group summaries (Control vs Patient) for key metrics.
-5. Prints the group summary table, sorted by highest average accuracy.
-
-The goal is to show a complete beginner-friendly analysis workflow in one file.
-"""
-
 from pathlib import Path
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 # This script is intentionally written as a simple top-level script (no main function)
 # so new learners can read it from top to bottom in execution order.
@@ -77,3 +63,7 @@ group_summary = df.groupby("Group").agg(
 # to make the printed table easier to read in class.
 print(group_summary.sort_values("AvgAccuracy", ascending=False).round(3))
 
+plt.figure()
+plt.scatter(df["MeanFD_mm"], df["AccuracyPct"])
+plt.savefig(project_root / "motion_vs_accuracy.png")
+plt.show()
