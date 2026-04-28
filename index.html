@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tiger Observations</title>
+    <title>Eurasian Otter Observations</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
           integrity="sha256-p4NxAoCcTzABF2Q9S8aXf--6oU+EVQ/azjD7aYNkUoQ="
           crossorigin="" />
@@ -11,6 +11,9 @@
             integrity="sha256-20nQCchB9co0qIjJZRGuk2/4K9+sSENG+oFGADcXQA4="
             crossorigin=""></script>
     <style>
+        html, body {
+            height: 100%;
+        }
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -34,6 +37,7 @@
             flex: 1;
             min-height: 420px;
             width: 100%;
+            height: 100%;
         }
         .controls {
             display: flex;
@@ -48,17 +52,20 @@
             appearance: none;
             border: none;
             border-radius: 8px;
-            padding: 12px 18px;
-            font-size: 1rem;
-            background: #0077cc;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 500;
             color: #fff;
+            background: #007bff;
             cursor: pointer;
+            transition: background 0.2s;
         }
         button:hover {
-            background: #005fa3;
+            background: #0056b3;
         }
-        .leaflet-popup-content-wrapper {
-            font-size: 0.95rem;
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
         }
         @media (max-width: 600px) {
             h1 {
@@ -75,91 +82,94 @@
     </style>
 </head>
 <body>
-<header>
-    <h1>Tiger (Panthera tigris) Observations</h1>
-</header>
-<div class="controls">
-    <button id="refreshButton" type="button">Refresh Observations</button>
-    <button id="clearButton" type="button">Clear Markers</button>
-</div>
-<div id="map"></div>
+    <header>
+        <h1>Eurasian Otter Observations</h1>
+    </header>
+    <div id="map"></div>
+    <div class="controls">
+        <button id="refreshBtn">Refresh Observations</button>
+        <button id="clearBtn">Clear Markers</button>
+    </div>
+    <script>
+        const map = L.map('map').setView([20, 0], 2);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        }).addTo(map);
 
-<script>
-    const map = L.map('map').setView([10, 20], 2);
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Tiles © Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
-        maxZoom: 18
-    }).addTo(map);
+        // Ensure Leaflet redraws once the page layout is stable
+        setTimeout(() => map.invalidateSize(), 0);
 
-    const markers = L.featureGroup().addTo(map);
+        const markerGroup = L.layerGroup().addTo(map);
 
-    const escapeHtml = (text) => {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    };
-
-    const getObservationUrl = (obs) => obs.uri || `https://www.inaturalist.org/observations/${obs.id}`;
-
-    const displayObservations = (observations) => {
-        markers.clearLayers();
-        const bounds = [];
-
-        if (!observations || observations.length === 0) {
-            alert('No tiger observations were returned.');
-            return;
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
-        observations.forEach((obs) => {
-            const coords = obs.geojson && obs.geojson.coordinates;
-            if (!coords || coords.length < 2) {
-                return;
+        function parseCoordinates(obs) {
+            if (typeof obs.latitude === 'number' && typeof obs.longitude === 'number') {
+                return [obs.latitude, obs.longitude];
             }
-
-            const lat = coords[1];
-            const lng = coords[0];
-            const commonName = obs.common_name ? escapeHtml(obs.common_name) : 'Tiger';
-            const scientificName = obs.species_guess ? escapeHtml(obs.species_guess) : 'Panthera tigris';
-            const observedOn = obs.time_observed_at ? new Date(obs.time_observed_at).toLocaleDateString() : 'Unknown date';
-            const observer = obs.user && obs.user.login ? escapeHtml(obs.user.login) : 'Unknown observer';
-            const observationLink = escapeHtml(getObservationUrl(obs));
-
-            const popupHtml = `
-                <strong>${commonName}</strong> (${scientificName})<br>
-                Observed: ${observedOn}<br>
-                Observer: <a href="https://www.inaturalist.org/users/${observer}" target="_blank" rel="noopener">${observer}</a><br>
-                <a href="${observationLink}" target="_blank" rel="noopener">View on iNaturalist</a>
-            `;
-            L.marker([lat, lng]).bindPopup(popupHtml).addTo(markers);
-            bounds.push([lat, lng]);
-        });
-
-        if (bounds.length > 0) {
-            map.fitBounds(bounds, { padding: [40, 40], maxZoom: 10 });
-        }
-    };
-
-    const fetchTigerObservations = async () => {
-        const taxonId = 41639;
-        const apiUrl = `https://api.inaturalist.org/v1/observations?taxon_id=${taxonId}&per_page=100&has_geo=true&order=desc&order_by=observed_on`;
-
-        try {
-            const response = await fetch(apiUrl);
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+            if (!obs.location) {
+                return null;
             }
-            const data = await response.json();
-            displayObservations(data.results);
-        } catch (error) {
-            console.error('Failed to load observations:', error);
-            alert('Unable to fetch tiger observations. Try again later.');
+            const [lat, lng] = obs.location.split(',').map(Number);
+            return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
         }
-    };
 
-    document.getElementById('refreshButton').addEventListener('click', fetchTigerObservations);
-    document.getElementById('clearButton').addEventListener('click', () => markers.clearLayers());
+        function fetchObservations() {
+            const refreshBtn = document.getElementById('refreshBtn');
+            refreshBtn.disabled = true;
 
-    fetchTigerObservations();
-</script>
+            fetch('https://api.inaturalist.org/v1/observations?taxon_name=Lutra%20lutra&per_page=200&order=desc&order_by=observed_on')
+                .then(response => response.json())
+                .then(data => {
+                    clearMarkers();
+                    const bounds = [];
+
+                    data.results.forEach(obs => {
+                        const coords = parseCoordinates(obs);
+                        if (!coords) {
+                            return;
+                        }
+
+                        const [lat, lng] = coords;
+                        const commonName = obs.taxon ? obs.taxon.preferred_common_name || obs.taxon.name : 'Unknown';
+                        const sciName = obs.taxon ? obs.taxon.name : 'Unknown';
+                        const date = obs.observed_on || 'Unknown';
+                        const user = obs.user ? obs.user.login : 'Unknown';
+                        const link = `https://www.inaturalist.org/observations/${encodeURIComponent(obs.id)}`;
+
+                        const popupContent = `
+                            <strong>${escapeHtml(commonName)} (${escapeHtml(sciName)})</strong><br>
+                            Date: ${escapeHtml(date)}<br>
+                            Observer: ${escapeHtml(user)}<br>
+                            <a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">View on iNaturalist</a>
+                        `;
+
+                        L.marker([lat, lng]).bindPopup(popupContent).addTo(markerGroup);
+                        bounds.push([lat, lng]);
+                    });
+
+                    if (bounds.length > 0) {
+                        map.fitBounds(bounds, { padding: [20, 20], maxZoom: 12 });
+                    }
+                })
+                .catch(error => console.error('Error fetching observations:', error))
+                .finally(() => {
+                    refreshBtn.disabled = false;
+                });
+        }
+
+        function clearMarkers() {
+            markerGroup.clearLayers();
+        }
+
+        document.getElementById('refreshBtn').addEventListener('click', fetchObservations);
+        document.getElementById('clearBtn').addEventListener('click', clearMarkers);
+
+        fetchObservations();
+    </script>
 </body>
 </html>
