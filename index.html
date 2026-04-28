@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tiger Observations</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoCcTzABF2Q9S8aXf--6oU+EVQ/azjD7aYNkUoQ="
+          crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/4K9+sSENG+oFGADcXQA4="
+            crossorigin=""></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: #eef2f5;
+        }
+        header {
+            padding: 16px 12px 6px;
+            text-align: center;
+            background: #fff;
+            border-bottom: 1px solid #ddd;
+        }
+        h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: #1e2a38;
+        }
+        #map {
+            flex: 1;
+            min-height: 420px;
+            width: 100%;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            padding: 12px;
+            background: #fff;
+            border-top: 1px solid #ddd;
+        }
+        button {
+            appearance: none;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 18px;
+            font-size: 1rem;
+            background: #0077cc;
+            color: #fff;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #005fa3;
+        }
+        .leaflet-popup-content-wrapper {
+            font-size: 0.95rem;
+        }
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.25rem;
+            }
+            #map {
+                min-height: 320px;
+            }
+            button {
+                width: 100%;
+                max-width: 320px;
+            }
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Tiger (Panthera tigris) Observations</h1>
+</header>
+<div class="controls">
+    <button id="refreshButton" type="button">Refresh Observations</button>
+    <button id="clearButton" type="button">Clear Markers</button>
+</div>
+<div id="map"></div>
+
+<script>
+    const map = L.map('map').setView([10, 20], 2);
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles © Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+        maxZoom: 18
+    }).addTo(map);
+
+    const markers = L.featureGroup().addTo(map);
+
+    const escapeHtml = (text) => {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    };
+
+    const getObservationUrl = (obs) => obs.uri || `https://www.inaturalist.org/observations/${obs.id}`;
+
+    const displayObservations = (observations) => {
+        markers.clearLayers();
+        const bounds = [];
+
+        if (!observations || observations.length === 0) {
+            alert('No tiger observations were returned.');
+            return;
+        }
+
+        observations.forEach((obs) => {
+            const coords = obs.geojson && obs.geojson.coordinates;
+            if (!coords || coords.length < 2) {
+                return;
+            }
+
+            const lat = coords[1];
+            const lng = coords[0];
+            const commonName = obs.common_name ? escapeHtml(obs.common_name) : 'Tiger';
+            const scientificName = obs.species_guess ? escapeHtml(obs.species_guess) : 'Panthera tigris';
+            const observedOn = obs.time_observed_at ? new Date(obs.time_observed_at).toLocaleDateString() : 'Unknown date';
+            const observer = obs.user && obs.user.login ? escapeHtml(obs.user.login) : 'Unknown observer';
+            const observationLink = escapeHtml(getObservationUrl(obs));
+
+            const popupHtml = `
+                <strong>${commonName}</strong> (${scientificName})<br>
+                Observed: ${observedOn}<br>
+                Observer: <a href="https://www.inaturalist.org/users/${observer}" target="_blank" rel="noopener">${observer}</a><br>
+                <a href="${observationLink}" target="_blank" rel="noopener">View on iNaturalist</a>
+            `;
+            L.marker([lat, lng]).bindPopup(popupHtml).addTo(markers);
+            bounds.push([lat, lng]);
+        });
+
+        if (bounds.length > 0) {
+            map.fitBounds(bounds, { padding: [40, 40], maxZoom: 10 });
+        }
+    };
+
+    const fetchTigerObservations = async () => {
+        const taxonId = 41639;
+        const apiUrl = `https://api.inaturalist.org/v1/observations?taxon_id=${taxonId}&per_page=100&has_geo=true&order=desc&order_by=observed_on`;
+
+        try {
+            const response = await fetch(apiUrl);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            const data = await response.json();
+            displayObservations(data.results);
+        } catch (error) {
+            console.error('Failed to load observations:', error);
+            alert('Unable to fetch tiger observations. Try again later.');
+        }
+    };
+
+    document.getElementById('refreshButton').addEventListener('click', fetchTigerObservations);
+    document.getElementById('clearButton').addEventListener('click', () => markers.clearLayers());
+
+    fetchTigerObservations();
+</script>
+</body>
+</html>
